@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Urban Heat Mitigation — Live Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0a0e1a;
+      --surface: #111827;
+      --surface2: #1a2235;
+      --surface3: #1f2d42;
+      --border: #1e3a5f;
+      --accent: #3b82f6;
+      --accent2: #06b6d4;
+      --green: #10b981;
+      --yellow: #f59e0b;
+      --red: #ef4444;
+      --orange: #f97316;
+      --purple: #8b5cf6;
+      --text: #e2e8f0;
+      --muted: #64748b;
+      --radius: 12px;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      background-image:
+        radial-gradient(ellipse at 20% 0%, rgba(59,130,246,0.08) 0%, transparent 60%),
+        radial-gradient(ellipse at 80% 100%, rgba(6,182,212,0.06) 0%, transparent 50%);
+    }
+
+    /* ── HEADER ── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 28px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(17,24,39,0.8);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .logo-icon {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, #3b82f6, #06b6d4);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+    }
+    .logo-text { font-size: 17px; font-weight: 700; letter-spacing: -0.3px; }
+    .logo-text span { color: var(--accent2); }
+
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      padding: 5px 12px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 6px var(--green);
+      animation: pulse 2s infinite;
+    }
+    .dot.offline { background: var(--red); box-shadow: 0 0 6px var(--red); animation: none; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+    .header-btn {
+      cursor: pointer;
+      padding: 7px 16px;
+      border-radius: 8px;
+      border: 1px solid var(--accent);
+      background: rgba(59,130,246,0.1);
+      color: var(--accent);
+      font-size: 13px;
+      font-weight: 600;
+      font-family: inherit;
+      transition: all 0.2s;
+    }
+    .header-btn:hover { background: rgba(59,130,246,0.25); transform: translateY(-1px); }
+
+    /* ── LAYOUT ── */
+    .main { display: flex; gap: 0; height: calc(100vh - 65px); }
+
+    /* ── SIDEBAR ── */
+    .sidebar {
+      width: 280px;
+      min-width: 280px;
+      border-right: 1px solid var(--border);
+      background: var(--surface);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+    .sidebar-section {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .sidebar-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    /* Stats */
+    .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .stat-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+    }
+    .stat-label { font-size: 10px; color: var(--muted); font-weight: 500; margin-bottom: 4px; }
+    .stat-value { font-size: 20px; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+    .stat-value.temp { color: #f97316; }
+    .stat-value.budget { color: #10b981; }
+    .stat-value.steps { color: #8b5cf6; }
+    .stat-value.avg { color: #06b6d4; }
+
+    /* Budget bar */
+    .budget-bar-wrap { margin-top: 8px; }
+    .budget-bar-bg {
+      height: 6px;
+      background: var(--surface3);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .budget-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #10b981, #06b6d4);
+      border-radius: 3px;
+      transition: width 0.5s ease;
+    }
+    .budget-label { font-size: 11px; color: var(--muted); margin-top: 4px; text-align: right; }
+
+    /* Tasks */
+    .task-cards { display: flex; flex-direction: column; gap: 8px; }
+    .task-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .task-card:hover { border-color: var(--accent); background: var(--surface3); }
+    .task-card.active { border-color: var(--accent); background: rgba(59,130,246,0.1); }
+    .task-card-header { display: flex; align-items: center; justify-content: space-between; }
+    .task-name { font-size: 12px; font-weight: 600; }
+    .task-badge {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 2px 7px;
+      border-radius: 10px;
+    }
+    .task-badge.easy { background: rgba(16,185,129,0.2); color: #10b981; }
+    .task-badge.medium { background: rgba(245,158,11,0.2); color: #f59e0b; }
+    .task-badge.hard { background: rgba(239,68,68,0.2); color: #ef4444; }
+    .task-desc { font-size: 10px; color: var(--muted); margin-top: 4px; line-height: 1.4; }
+    .task-score-row { display: flex; align-items: center; justify-content: space-between; margin-top: 6px; }
+    .score-bar-bg { flex: 1; height: 4px; background: var(--surface3); border-radius: 2px; overflow: hidden; margin-right: 8px; }
+    .score-bar-fill { height: 100%; border-radius: 2px; transition: width 0.6s ease; }
+    .score-val { font-size: 11px; font-weight: 700; font-family: 'JetBrains Mono'; width: 36px; text-align: right; }
+
+    /* Grade button */
+    .grade-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      width: 100%;
+      margin-top: 10px;
+      padding: 7px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--surface3);
+      color: var(--text);
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.2s;
+    }
+    .grade-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* Legend */
+    .legend { display: flex; flex-direction: column; gap: 6px; }
+    .legend-item { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text); }
+    .legend-swatch { width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; }
+
+    /* ── MAIN CONTENT ── */
+    .content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+    /* Grid canvas area */
+    .grid-area {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      overflow: auto;
+    }
+    .grid-container { position: relative; }
+    .grid-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      text-align: center;
+      margin-bottom: 12px;
+    }
+
+    /* Row labels top */
+    .grid-labels-row {
+      display: flex;
+      margin-left: 28px;
+      margin-bottom: 4px;
+    }
+    .grid-col-label {
+      width: 58px;
+      text-align: center;
+      font-size: 10px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .grid-inner { display: flex; gap: 0; }
+    .grid-row-labels {
+      display: flex;
+      flex-direction: column;
+      margin-right: 6px;
+      margin-top: 0;
+    }
+    .grid-row-label {
+      height: 58px;
+      display: flex;
+      align-items: center;
+      font-size: 10px;
+      color: var(--muted);
+      font-weight: 600;
+      width: 22px;
+      justify-content: flex-end;
+    }
+
+    #city-grid {
+      display: grid;
+      grid-template-columns: repeat(8, 58px);
+      grid-template-rows: repeat(8, 58px);
+      gap: 3px;
+      border: 1px solid var(--border);
+      padding: 4px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.02);
+    }
+
+    .cell {
+      width: 58px;
+      height: 58px;
+      border-radius: 6px;
+      position: relative;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.04);
+    }
+    .cell:hover { transform: scale(1.12); z-index: 10; box-shadow: 0 6px 24px rgba(0,0,0,0.4); }
+    .cell.last-placed {
+      animation: placed 0.5s ease;
+      border: 2px solid rgba(255,255,255,0.6) !important;
+    }
+    @keyframes placed {
+      0%   { transform: scale(1.25); box-shadow: 0 0 20px rgba(59,130,246,0.8); }
+      100% { transform: scale(1); }
+    }
+
+    .cell-bg { position: absolute; inset: 0; }
+    .cell-icon {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 20px;
+      filter: drop-shadow(0 1px 3px rgba(0,0,0,0.5));
+    }
+    .cell-temp {
+      position: absolute;
+      bottom: 3px;
+      right: 4px;
+      font-size: 9px;
+      font-weight: 700;
+      font-family: 'JetBrains Mono';
+      color: #fff;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+    }
+    .cell-pop {
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      font-size: 8px;
+      font-weight: 600;
+      color: rgba(255,255,255,0.7);
+    }
+    .cell-intervention {
+      position: absolute;
+      top: 3px;
+      right: 3px;
+      font-size: 11px;
+    }
+
+    /* Tooltip */
+    .cell-tooltip {
+      display: none;
+      position: fixed;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 11px;
+      z-index: 1000;
+      pointer-events: none;
+      min-width: 160px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+    .tooltip-row { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 3px; }
+    .tooltip-key { color: var(--muted); }
+    .tooltip-val { font-weight: 600; font-family: 'JetBrains Mono'; }
+
+    /* ── RIGHT PANEL ── */
+    .right-panel {
+      width: 260px;
+      min-width: 260px;
+      border-left: 1px solid var(--border);
+      background: var(--surface);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .log-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .log-count {
+      background: var(--surface2);
+      border-radius: 10px;
+      padding: 2px 8px;
+      font-size: 11px;
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    #log-feed {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    #log-feed::-webkit-scrollbar { width: 4px; }
+    #log-feed::-webkit-scrollbar-track { background: transparent; }
+    #log-feed::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .log-entry {
+      background: var(--surface2);
+      border-radius: 6px;
+      padding: 7px 10px;
+      font-size: 11px;
+      border-left: 3px solid transparent;
+      animation: slideIn 0.2s ease;
+    }
+    @keyframes slideIn { from { opacity:0; transform: translateX(10px);} to { opacity:1; transform: translateX(0);} }
+    .log-entry.system { border-left-color: var(--accent); }
+    .log-entry.step   { border-left-color: var(--green); }
+    .log-entry.grade  { border-left-color: var(--purple); }
+    .log-entry.error  { border-left-color: var(--red); }
+    .log-entry.task   { border-left-color: var(--yellow); }
+    .log-time { font-size: 9px; color: var(--muted); margin-bottom: 2px; }
+    .log-msg { color: var(--text); line-height: 1.4; }
+    .log-reward { color: var(--green); font-weight: 700; }
+
+    /* Heatmap toggle */
+    .view-toggle {
+      display: flex;
+      gap: 4px;
+      padding: 10px 16px;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+    .vt-btn {
+      flex: 1;
+      padding: 6px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      transition: all 0.2s;
+      text-align: center;
+    }
+    .vt-btn.active { background: rgba(59,130,246,0.2); border-color: var(--accent); color: var(--accent); }
+
+    /* Controls bottom */
+    .bottom-controls {
+      padding: 12px 16px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .ctrl-btn {
+      width: 100%;
+      padding: 10px;
+      border-radius: 8px;
+      border: none;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .ctrl-btn.primary {
+      background: linear-gradient(135deg, #3b82f6, #06b6d4);
+      color: #fff;
+    }
+    .ctrl-btn.primary:hover { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 4px 16px rgba(59,130,246,0.4); }
+    .ctrl-btn.secondary {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .ctrl-btn.secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── POLLING INDICATOR ── */
+    #poll-ring {
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      animation: spin 1s linear infinite;
+      display: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #poll-ring.active { display: block; }
+
+    /* Temperature colormap */
+    .temp-legend {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 10px;
+      color: var(--muted);
+    }
+    .temp-gradient {
+      flex: 1;
+      height: 8px;
+      border-radius: 4px;
+      background: linear-gradient(90deg, #06b6d4, #3b82f6, #f59e0b, #ef4444);
+    }
+
+    /* Overview numbers */
+    .overview-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .ov-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      text-align: center;
+    }
+    .ov-label { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; }
+    .ov-value { font-size: 17px; font-weight: 700; font-family: 'JetBrains Mono'; margin-top: 2px; }
+  </style>
+</head>
+<body>
+
+<div id="tooltip" class="cell-tooltip">
+  <div class="tooltip-row"><span class="tooltip-key">Cell</span><span class="tooltip-val" id="tt-pos"></span></div>
+  <div class="tooltip-row"><span class="tooltip-key">Surface</span><span class="tooltip-val" id="tt-surf"></span></div>
+  <div class="tooltip-row"><span class="tooltip-key">Temperature</span><span class="tooltip-val" id="tt-temp"></span></div>
+  <div class="tooltip-row"><span class="tooltip-key">Pop. Density</span><span class="tooltip-val" id="tt-pop"></span></div>
+</div>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">🌆</div>
+    <div class="logo-text">Urban Heat <span>Mitigation</span></div>
+  </div>
+  <div class="status-bar">
+    <div id="poll-ring"></div>
+    <div class="status-pill">
+      <div class="dot" id="status-dot"></div>
+      <span id="status-text">Connecting…</span>
+    </div>
+    <button class="header-btn" onclick="resetEnv()">↺ Reset</button>
+    <button class="header-btn" onclick="gradeAll()">📊 Grade All</button>
+  </div>
+</header>
+
+<div class="main">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Live Stats</div>
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-label">Avg Temp</div>
+          <div class="stat-value avg" id="stat-avg">--</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Budget</div>
+          <div class="stat-value budget" id="stat-budget">--</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Steps</div>
+          <div class="stat-value steps" id="stat-steps">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Status</div>
+          <div class="stat-value" id="stat-done" style="font-size:13px;color:var(--green)">Active</div>
+        </div>
+      </div>
+      <div class="budget-bar-wrap">
+        <div class="budget-bar-bg">
+          <div class="budget-bar-fill" id="budget-bar" style="width:100%"></div>
+        </div>
+        <div class="budget-label" id="budget-label">15 / 15 budget</div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Tasks</div>
+      <div class="task-cards">
+        <div class="task-card" id="task-reduce_avg_temp">
+          <div class="task-card-header">
+            <span class="task-name">Reduce Avg Temp</span>
+            <span class="task-badge easy">Easy</span>
+          </div>
+          <div class="task-desc">Reduce average grid temperature by ≥ 2°C</div>
+          <div class="task-score-row">
+            <div class="score-bar-bg"><div class="score-bar-fill" id="bar-reduce_avg_temp" style="width:0%;background:#10b981"></div></div>
+            <div class="score-val" id="score-reduce_avg_temp" style="color:#10b981">—</div>
+          </div>
+          <button class="grade-btn" onclick="gradeTask('reduce_avg_temp')">⚖️ Grade</button>
+        </div>
+        <div class="task-card" id="task-protect_dense_zones">
+          <div class="task-card-header">
+            <span class="task-name">Protect Dense Zones</span>
+            <span class="task-badge medium">Med</span>
+          </div>
+          <div class="task-desc">Cool 5 highest-density cells by ≥ 1.5°C each</div>
+          <div class="task-score-row">
+            <div class="score-bar-bg"><div class="score-bar-fill" id="bar-protect_dense_zones" style="width:0%;background:#f59e0b"></div></div>
+            <div class="score-val" id="score-protect_dense_zones" style="color:#f59e0b">—</div>
+          </div>
+          <button class="grade-btn" onclick="gradeTask('protect_dense_zones')">⚖️ Grade</button>
+        </div>
+        <div class="task-card" id="task-full_mitigation">
+          <div class="task-card-header">
+            <span class="task-name">Full Mitigation</span>
+            <span class="task-badge hard">Hard</span>
+          </div>
+          <div class="task-desc">Composite: temp reduction + pop coverage + budget efficiency</div>
+          <div class="task-score-row">
+            <div class="score-bar-bg"><div class="score-bar-fill" id="bar-full_mitigation" style="width:0%;background:#ef4444"></div></div>
+            <div class="score-val" id="score-full_mitigation" style="color:#ef4444">—</div>
+          </div>
+          <button class="grade-btn" onclick="gradeTask('full_mitigation')">⚖️ Grade</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Legend — Surface</div>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-swatch" style="background:#6b7280"></div> Road</div>
+        <div class="legend-item"><div class="legend-swatch" style="background:#92400e"></div> Building</div>
+        <div class="legend-item"><div class="legend-swatch" style="background:#065f46"></div> Park</div>
+        <div class="legend-item"><div class="legend-swatch" style="background:#1e40af"></div> Water</div>
+        <div class="legend-item"><div class="legend-swatch" style="background:#166534;border:2px solid #4ade80"></div> 🌿 Green Roof</div>
+        <div class="legend-item"><div class="legend-swatch" style="background:#1e3a8a;border:2px solid #93c5fd"></div> ✨ Reflective</div>
+        <div class="legend-item"><div class="legend-swatch" style="background:#14532d;border:2px solid #86efac"></div> 🌳 Tree Canopy</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <div class="content">
+    <div class="view-toggle">
+      <button class="vt-btn active" id="vt-surface" onclick="setView('surface')">Surface</button>
+      <button class="vt-btn" id="vt-temp" onclick="setView('temp')">Heat Map</button>
+      <button class="vt-btn" id="vt-pop" onclick="setView('pop')">Population</button>
+    </div>
+    <div class="temp-legend" id="temp-legend" style="display:none">
+      <span>Cool</span>
+      <div class="temp-gradient"></div>
+      <span>Hot</span>
+    </div>
+
+    <div class="grid-area">
+      <div class="grid-container">
+        <div class="grid-title" id="grid-title">SURFACE TYPES</div>
+        <div class="grid-labels-row">
+          <div class="grid-col-label">C0</div>
+          <div class="grid-col-label">C1</div>
+          <div class="grid-col-label">C2</div>
+          <div class="grid-col-label">C3</div>
+          <div class="grid-col-label">C4</div>
+          <div class="grid-col-label">C5</div>
+          <div class="grid-col-label">C6</div>
+          <div class="grid-col-label">C7</div>
+        </div>
+        <div class="grid-inner">
+          <div class="grid-row-labels">
+            <div class="grid-row-label">R0</div>
+            <div class="grid-row-label">R1</div>
+            <div class="grid-row-label">R2</div>
+            <div class="grid-row-label">R3</div>
+            <div class="grid-row-label">R4</div>
+            <div class="grid-row-label">R5</div>
+            <div class="grid-row-label">R6</div>
+            <div class="grid-row-label">R7</div>
+          </div>
+          <div id="city-grid"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="right-panel">
+    <div class="log-header">
+      Activity Log
+      <span class="log-count" id="log-count">0</span>
+    </div>
+    <div id="log-feed"></div>
+    <div class="bottom-controls">
+      <button class="ctrl-btn primary" onclick="startPolling()">▶ Live Refresh</button>
+      <button class="ctrl-btn secondary" onclick="stopPolling()">⏸ Pause</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const API = 'http://localhost:8000';
+  let currentView = 'surface';
+  let pollInterval = null;
+  let state = null;
+  let interventions = {}; // track placed interventions: "r,c" -> type
+  let lastPlaced = null;
+  let logCount = 0;
+
+  // Surface colors
+  const SURFACE_COLORS = {
+    road:     '#374151',
+    building: '#78350f',
+    park:     '#064e3b',
+    water:    '#1e3a8a',
+  };
+  const SURFACE_ICONS = {
+    road:     '🛣️',
+    building: '🏢',
+    park:     '🌿',
+    water:    '💧',
+  };
+  const INTERVENTION_ICONS = {
+    green_roof:         '🌿',
+    reflective_surface: '✨',
+    tree_canopy:        '🌳',
+  };
+  const INTERVENTION_COLORS = {
+    green_roof:         { bg: '#166534', border: '2px solid #4ade80' },
+    reflective_surface: { bg: '#1e3a8a', border: '2px solid #93c5fd' },
+    tree_canopy:        { bg: '#14532d', border: '2px solid #86efac' },
+  };
+
+  function tempToColor(t) {
+    // 20°C (cool blue) → 45°C (hot red)
+    const lo = 20, hi = 45;
+    const r = Math.max(0, Math.min(1, (t - lo) / (hi - lo)));
+    const h = (1 - r) * 240; // 240=blue, 0=red
+    return `hsl(${h}, 80%, 40%)`;
+  }
+
+  function popToColor(p) {
+    const h = (1 - p) * 120; // 120=green (low), 0=red (high)
+    return `hsl(${h}, 70%, 30%)`;
+  }
+
+  function buildGrid(st) {
+    const grid = document.getElementById('city-grid');
+    grid.innerHTML = '';
+    if (!st || !st.grid) return;
+
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const cell = st.grid[r][c];
+        const key = `${r},${c}`;
+        const iv = interventions[key];
+
+        const div = document.createElement('div');
+        div.className = 'cell' + (key === lastPlaced ? ' last-placed' : '');
+        div.id = `cell-${r}-${c}`;
+
+        // Background
+        const bgDiv = document.createElement('div');
+        bgDiv.className = 'cell-bg';
+
+        if (currentView === 'temp') {
+          bgDiv.style.background = tempToColor(cell.temperature);
+        } else if (currentView === 'pop') {
+          bgDiv.style.background = popToColor(cell.population_density);
+        } else {
+          if (iv) {
+            bgDiv.style.background = INTERVENTION_COLORS[iv].bg;
+            div.style.border = INTERVENTION_COLORS[iv].border;
+          } else {
+            bgDiv.style.background = SURFACE_COLORS[cell.surface_type] || '#1a2235';
+          }
+        }
+        div.appendChild(bgDiv);
+
+        // Icon
+        const iconDiv = document.createElement('div');
+        iconDiv.className = 'cell-icon';
+        if (currentView === 'surface') {
+          iconDiv.textContent = iv ? INTERVENTION_ICONS[iv] : SURFACE_ICONS[cell.surface_type] || '?';
+        } else if (currentView === 'temp') {
+          iconDiv.style.fontSize = '11px';
+          iconDiv.style.fontFamily = "'JetBrains Mono'";
+          iconDiv.style.color = '#fff';
+          iconDiv.style.fontWeight = '700';
+          iconDiv.textContent = cell.temperature.toFixed(1) + '°';
+        } else {
+          iconDiv.style.fontSize = '11px';
+          iconDiv.style.fontFamily = "'JetBrains Mono'";
+          iconDiv.style.color = '#fff';
+          iconDiv.style.fontWeight = '700';
+          iconDiv.textContent = (cell.population_density * 100).toFixed(0) + '%';
+        }
+        div.appendChild(iconDiv);
+
+        // Temp label (surface view only)
+        if (currentView === 'surface') {
+          const tempDiv = document.createElement('div');
+          tempDiv.className = 'cell-temp';
+          tempDiv.textContent = cell.temperature.toFixed(1) + '°';
+          div.appendChild(tempDiv);
+        }
+
+        // Pop label (surface view only)
+        if (currentView === 'surface') {
+          const popDiv = document.createElement('div');
+          popDiv.className = 'cell-pop';
+          popDiv.textContent = (cell.population_density * 100).toFixed(0) + '%';
+          div.appendChild(popDiv);
+        }
+
+        // Intervention badge (temp/pop views)
+        if (iv && currentView !== 'surface') {
+          const ivDiv = document.createElement('div');
+          ivDiv.className = 'cell-intervention';
+          ivDiv.textContent = INTERVENTION_ICONS[iv];
+          div.appendChild(ivDiv);
+        }
+
+        // Tooltip
+        div.addEventListener('mousemove', (e) => {
+          const tt = document.getElementById('tooltip');
+          tt.style.display = 'block';
+          tt.style.left = (e.clientX + 14) + 'px';
+          tt.style.top = (e.clientY - 10) + 'px';
+          document.getElementById('tt-pos').textContent = `(${r}, ${c})`;
+          document.getElementById('tt-surf').textContent = cell.surface_type + (iv ? ` + ${iv.replace('_',' ')}` : '');
+          document.getElementById('tt-temp').textContent = cell.temperature + '°C';
+          document.getElementById('tt-pop').textContent = (cell.population_density * 100).toFixed(1) + '%';
+        });
+        div.addEventListener('mouseleave', () => {
+          document.getElementById('tooltip').style.display = 'none';
+        });
+
+        grid.appendChild(div);
+      }
+    }
+  }
+
+  function updateStats(st) {
+    document.getElementById('stat-avg').textContent = st.avg_temperature?.toFixed(1) + '°';
+    document.getElementById('stat-budget').textContent = st.budget?.toFixed(1);
+    document.getElementById('stat-steps').textContent = st.step_count;
+    document.getElementById('stat-done').textContent = st.episode_done ? 'Done ✓' : 'Active';
+    document.getElementById('stat-done').style.color = st.episode_done ? 'var(--yellow)' : 'var(--green)';
+
+    const pct = (st.budget / 15) * 100;
+    document.getElementById('budget-bar').style.width = pct + '%';
+    document.getElementById('budget-label').textContent = `${st.budget?.toFixed(1)} / 15 budget`;
+
+    const barFill = document.getElementById('budget-bar');
+    barFill.style.background = pct > 50
+      ? 'linear-gradient(90deg, #10b981, #06b6d4)'
+      : pct > 20
+      ? 'linear-gradient(90deg, #f59e0b, #f97316)'
+      : 'linear-gradient(90deg, #ef4444, #f97316)';
+  }
+
+  function addLog(msg, type = 'system') {
+    const feed = document.getElementById('log-feed');
+    const entry = document.createElement('div');
+    entry.className = `log-entry ${type}`;
+    const now = new Date().toLocaleTimeString();
+    entry.innerHTML = `<div class="log-time">${now}</div><div class="log-msg">${msg}</div>`;
+    feed.prepend(entry);
+    logCount++;
+    document.getElementById('log-count').textContent = logCount;
+    // Keep max 100 entries
+    while (feed.children.length > 100) feed.removeChild(feed.lastChild);
+  }
+
+  async function fetchState() {
+    document.getElementById('poll-ring').classList.add('active');
+    try {
+      const res = await fetch(`${API}/state`);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const newState = await res.json();
+      document.getElementById('status-dot').classList.remove('offline');
+      document.getElementById('status-text').textContent = 'Connected';
+      if (!state || JSON.stringify(newState) !== JSON.stringify(state)) {
+        state = newState;
+        buildGrid(state);
+        updateStats(state);
+      }
+    } catch (e) {
+      document.getElementById('status-dot').classList.add('offline');
+      document.getElementById('status-text').textContent = 'Server offline';
+      addLog('⚠️ Cannot reach server at ' + API, 'error');
+    } finally {
+      document.getElementById('poll-ring').classList.remove('active');
+    }
+  }
+
+  async function resetEnv() {
+    try {
+      const res = await fetch(`${API}/reset`, { method: 'POST' });
+      state = await res.json();
+      interventions = {};
+      lastPlaced = null;
+      buildGrid(state);
+      updateStats(state);
+      addLog('🔄 Environment reset', 'system');
+    } catch (e) {
+      addLog('❌ Reset failed: ' + e.message, 'error');
+    }
+  }
+
+  async function gradeTask(taskId) {
+    try {
+      const res = await fetch(`${API}/grade/${taskId}`);
+      const result = await res.json();
+      const score = result.score;
+      const pct = (score * 100).toFixed(1);
+      document.getElementById(`score-${taskId}`).textContent = pct + '%';
+      document.getElementById(`bar-${taskId}`).style.width = pct + '%';
+      addLog(`📊 <b>${taskId}</b>: ${pct}%`, 'grade');
+    } catch (e) {
+      addLog('❌ Grade failed: ' + e.message, 'error');
+    }
+  }
+
+  async function gradeAll() {
+    addLog('📊 Grading all tasks…', 'system');
+    await gradeTask('reduce_avg_temp');
+    await gradeTask('protect_dense_zones');
+    await gradeTask('full_mitigation');
+  }
+
+  function setView(v) {
+    currentView = v;
+    ['surface','temp','pop'].forEach(x => {
+      document.getElementById('vt-' + x).classList.toggle('active', x === v);
+    });
+    document.getElementById('temp-legend').style.display = v === 'temp' ? 'flex' : 'none';
+    const titles = { surface: 'SURFACE TYPES', temp: 'HEAT MAP (°C)', pop: 'POPULATION DENSITY' };
+    document.getElementById('grid-title').textContent = titles[v];
+    if (state) buildGrid(state);
+  }
+
+  function startPolling() {
+    if (pollInterval) return;
+    fetchState();
+    pollInterval = setInterval(fetchState, 2000);
+    addLog('▶ Live refresh started (2s interval)', 'system');
+  }
+
+  function stopPolling() {
+    if (pollInterval) {
+      clearInterval(pollInterval);
+      pollInterval = null;
+      addLog('⏸ Live refresh paused', 'system');
+    }
+  }
+
+  // Override fetch for step endpoint to track interventions
+  const origFetch = window.fetch;
+  // We don't override fetch here since inference runs in python.
+  // Instead we poll and detect changes.
+
+  // ── Init ──
+  addLog('🚀 Dashboard initialised', 'system');
+  addLog('🔌 Connecting to ' + API, 'system');
+  startPolling();
+</script>
+</body>
+</html>
