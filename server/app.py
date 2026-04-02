@@ -73,3 +73,10 @@ def grade(task_id: str):
     if task_id not in TASK_IDS:
         raise HTTPException(status_code=404, detail="Task not found")
     return grid.grade_task(task_id)
+
+def main():
+    import uvicorn
+    uvicorn.run("server.app:app", host="0.0.0.0", port=7860)
+
+if __name__ == "__main__":
+    main()
