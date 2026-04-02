@@ -1,0 +1,20 @@
+[project]
+name = "urban-heat-env"
+version = "1.0.0"
+description = "Urban Heat Island Mitigation Planner RL Environment"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "pydantic>=2.0",
+    "numpy",
+    "openai",
+    "python-dotenv",
+    "httpx",
+    "requests",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+```
