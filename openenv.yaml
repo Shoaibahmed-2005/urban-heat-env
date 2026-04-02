@@ -1,8 +1,7 @@
 name: urban-heat-env
 version: "1.0.0"
 description: "Urban Heat Island Mitigation Planner — an RL environment where an agent places cooling interventions on a city grid to reduce heat exposure"
-author: "your-hf-username"
-
+author: "Shoaibahmedsheriff"
 tasks:
   - id: reduce_avg_temp
     difficulty: easy
@@ -13,13 +12,12 @@ tasks:
   - id: full_mitigation
     difficulty: hard
     description: "Composite score: temperature reduction, population coverage, and budget efficiency"
-
 api:
   base_url: "${API_BASE_URL}"
   model: "${MODEL_NAME}"
-
 endpoints:
   reset: POST /reset
   step: POST /step
   state: GET /state
   tasks: GET /tasks
+```
