@@ -91,15 +91,13 @@ def main():
     
     for task in tasks:
         task_id = task['id']
-        print(f"\n=========================================")
-        print(f" Starting Task: {task_id}")
-        print(f"=========================================")
+        print(f"[START] task={task_id}", flush=True)
         reset_env()
         
         for step_idx in range(15):
             state = get_state()
             if state.get("episode_done"):
-                print(f"Episode done early at step {step_idx}")
+                print(f"[STEP] step={step_idx} reward=0.0", flush=True)
                 break
                 
             prompt = format_prompt(state, task_id)
@@ -152,24 +150,20 @@ def main():
             try:
                 obs = step_env(action_data)
                 reward = obs.get("reward", 0)
-                print(f"Step {step_idx+1:2d}: Placed {action_data['intervention_type']} "
-                      f"at ({action_data['row']}, {action_data['col']}) | Reward: {reward:.4f}")
-                
+                print(f"[STEP] step={step_idx+1} reward={reward:.4f}", flush=True)
                 if obs.get("done"):
-                    print("Episode finished (out of budget or max steps reached).")
                     break
             except Exception as e:
-                print(f"Error during step: {e}")
+                print(f"[STEP] step={step_idx+1} reward=0.0", flush=True)
                 break
                 
-        # Get final score from the grader for this task
         try:
             result = grade_task(task_id)
             score = result.get('score', 0.0)
             final_scores[task_id] = score
-            print(f">>> Final Score for {task_id}: {score:.2f} <<<")
+            print(f"[END] task={task_id} score={score:.2f} steps={step_idx+1}", flush=True)
         except Exception as e:
-            print(f"Error grading task {task_id}: {e}")
+            print(f"[END] task={task_id} score=0.00 steps=0", flush=True)
 
     print("\n--- Summary ---")
     total = 0
