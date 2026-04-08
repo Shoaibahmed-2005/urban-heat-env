@@ -1,26 +1,25 @@
 import os
+import sys
 import json
 import time
 import requests
 import re
 import random
-from dotenv import load_dotenv
 from openai import OpenAI
 
-# Load environment variables
-load_dotenv()
+# CRITICAL FIX: We completely removed dotenv. 
+# We MUST NOT load a local .env file, otherwise we accidentally overwrite the platform's proxy!
 
-# CRITICAL FIX: Grab the exact variables the platform injects
-API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
-MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
-API_KEY = os.getenv("API_KEY") or os.getenv("HF_TOKEN") or "dummy_token"
+# Grab variables EXACTLY as the platform instructs
+API_BASE_URL = os.environ.get("API_BASE_URL", "https://router.huggingface.co/v1")
+API_KEY = os.environ.get("API_KEY", os.environ.get("HF_TOKEN", "dummy_token"))
+MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
 BENCHMARK_NAME = "urban_heat_env"
 
 # Initialize client exactly as requested by the autograder
 client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
 
-# Check if the hackathon platform passes a specific ENV_URL, otherwise default to localhost
-ENV_URL = os.getenv("ENV_URL", "http://localhost:8000")
+ENV_URL = os.environ.get("ENV_URL", "http://localhost:8000")
 
 def get_state():
     response = requests.get(f"{ENV_URL}/state")
@@ -63,7 +62,6 @@ def format_prompt(state, task_id):
 
 def main():
     connected = False
-    # Give the remote server up to 45 seconds to boot
     for _ in range(45):
         try:
             requests.get(f"{ENV_URL}/health")
@@ -97,7 +95,6 @@ def main():
     for task in tasks:
         task_id = task['id']
         
-        # STRICT [START] FORMAT
         print(f"[START] task={task_id} env={BENCHMARK_NAME} model={MODEL_NAME}", flush=True)
         reset_env()
         
@@ -131,6 +128,9 @@ def main():
                     parsed_action = json.loads(content)
                     
             except Exception as e:
+                # SECRET DEBUG LOGGER: This will not break Phase 2 stdout parsing, but we can see it in logs!
+                print(f"[DEBUG] LLM Failed: {e}", file=sys.stderr, flush=True)
+                
                 parsed_action = {
                     "row": random.randint(0, 7), 
                     "col": random.randint(0, 7), 
@@ -150,7 +150,6 @@ def main():
             if action_data["intervention_type"] not in ["green_roof", "reflective_surface", "tree_canopy"]:
                 action_data["intervention_type"] = "reflective_surface"
             
-            # Format action string cleanly without spaces
             action_str = f"place_{action_data['intervention_type']}_{action_data['row']}_{action_data['col']}"
             
             try:
@@ -162,7 +161,6 @@ def main():
                 steps_taken = step_idx + 1
                 done_str = str(done).lower()
                 
-                # STRICT [STEP] FORMAT
                 print(f"[STEP] step={steps_taken} action={action_str} reward={reward:.2f} done={done_str} error=null", flush=True)
                 
                 if done:
@@ -180,7 +178,6 @@ def main():
             success_str = "true" if score > 0.1 else "false"
             rewards_str = ",".join([f"{r:.2f}" for r in step_rewards]) if step_rewards else "0.00"
             
-            # STRICT [END] FORMAT
             print(f"[END] success={success_str} steps={steps_taken} score={score:.3f} rewards={rewards_str}", flush=True)
         except Exception as e:
             rewards_str = ",".join([f"{r:.2f}" for r in step_rewards]) if step_rewards else "0.00"
