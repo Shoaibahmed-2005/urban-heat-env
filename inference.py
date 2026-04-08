@@ -13,6 +13,7 @@ load_dotenv()
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
 HF_TOKEN = os.getenv("HF_TOKEN")
+BENCHMARK_NAME = "urban_heat_env"
 
 if not HF_TOKEN or HF_TOKEN == "your_hf_token_here":
     pass # SILENCED WARNING
@@ -70,16 +71,12 @@ def main():
         except requests.exceptions.ConnectionError:
             time.sleep(1)
     else:
-        # SILENCED: print("Failed to connect to the environment server.")
         return
 
     try:
         tasks = get_tasks()
     except Exception as e:
-        # SILENCED: print(f"Error fetching tasks: {e}")
         return
-
-    final_scores = {}
     
     system_prompt = (
         "You are a city planning agent. Your goal is to reduce urban heat by placing "
@@ -91,13 +88,17 @@ def main():
     
     for task in tasks:
         task_id = task['id']
-        print(f"[START] task={task_id}", flush=True)
+        
+        # STRICT [START] FORMAT
+        print(f"[START] task={task_id} env={BENCHMARK_NAME} model={MODEL_NAME}", flush=True)
         reset_env()
+        
+        step_rewards = []
+        steps_taken = 0
         
         for step_idx in range(15):
             state = get_state()
             if state.get("episode_done"):
-                print(f"[STEP] step={step_idx} reward=0.0", flush=True)
                 break
                 
             prompt = format_prompt(state, task_id)
@@ -115,7 +116,6 @@ def main():
                 )
                 
                 content = response.choices[0].message.content
-                # Attempt to extract JSON from the text
                 match = re.search(r'\{[^{}]*\}', content)
                 if match:
                     parsed_action = json.loads(match.group(0))
@@ -123,14 +123,12 @@ def main():
                     parsed_action = json.loads(content)
                     
             except Exception as e:
-                # SILENCED: print(f"[Warning] LLM error or invalid JSON: {e}. Using fallback random action.")
                 parsed_action = {
                     "row": random.randint(0, 7), 
                     "col": random.randint(0, 7), 
                     "intervention_type": random.choice(["green_roof", "reflective_surface", "tree_canopy"])
                 }
             
-            # Format action for the API
             action_data = {
                 "task_id": task_id,
                 "row": int(parsed_action.get("row", random.randint(0, 7))),
@@ -138,40 +136,47 @@ def main():
                 "intervention_type": str(parsed_action.get("intervention_type", "reflective_surface"))
             }
             
-            # Ensure coordinates are bounded
             action_data["row"] = max(0, min(7, action_data["row"]))
             action_data["col"] = max(0, min(7, action_data["col"]))
 
-            # Validate intervention_type
             if action_data["intervention_type"] not in ["green_roof", "reflective_surface", "tree_canopy"]:
                 action_data["intervention_type"] = "reflective_surface"
             
+            # Format action string cleanly without spaces
+            action_str = f"place_{action_data['intervention_type']}_{action_data['row']}_{action_data['col']}"
+            
             try:
                 obs = step_env(action_data)
-                reward = obs.get("reward", 0)
-                print(f"[STEP] step={step_idx+1} reward={reward:.4f}", flush=True)
-                if obs.get("done"):
+                reward = obs.get("reward", 0.0)
+                done = obs.get("done", False)
+                
+                step_rewards.append(reward)
+                steps_taken = step_idx + 1
+                done_str = str(done).lower()
+                
+                # STRICT [STEP] FORMAT
+                print(f"[STEP] step={steps_taken} action={action_str} reward={reward:.2f} done={done_str} error=null", flush=True)
+                
+                if done:
                     break
             except Exception as e:
-                print(f"[STEP] step={step_idx+1} reward=0.0", flush=True)
+                step_rewards.append(0.0)
+                steps_taken = step_idx + 1
+                safe_error = str(e).replace('\n', ' ').replace('=', '_')
+                print(f"[STEP] step={steps_taken} action={action_str} reward=0.00 done=true error=\"{safe_error}\"", flush=True)
                 break
                 
         try:
             result = grade_task(task_id)
             score = result.get('score', 0.0)
-            final_scores[task_id] = score
-            print(f"[END] task={task_id} score={score:.2f} steps={step_idx+1}", flush=True)
+            success_str = "true" if score > 0.1 else "false"
+            rewards_str = ",".join([f"{r:.2f}" for r in step_rewards]) if step_rewards else "0.00"
+            
+            # STRICT [END] FORMAT (Notice there is no "task=" here, matching their exact code)
+            print(f"[END] success={success_str} steps={steps_taken} score={score:.3f} rewards={rewards_str}", flush=True)
         except Exception as e:
-            print(f"[END] task={task_id} score=0.00 steps=0", flush=True)
-
-    # SILENCED THE ENTIRE SUMMARY BLOCK
-    # print("\n--- Summary ---")
-    # total = 0
-    # for i, (tid, score) in enumerate(final_scores.items()):
-    #     print(f"Task {i+1} ({tid}): {score:.2f}")
-    #     total += score
-    # if final_scores:
-    #     print(f"Average: {(total/len(final_scores)):.2f}")
+            rewards_str = ",".join([f"{r:.2f}" for r in step_rewards]) if step_rewards else "0.00"
+            print(f"[END] success=false steps={steps_taken} score=0.000 rewards={rewards_str}", flush=True)
 
 if __name__ == "__main__":
     main()
