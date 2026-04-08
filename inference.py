@@ -15,7 +15,7 @@ MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
 HF_TOKEN = os.getenv("HF_TOKEN")
 
 if not HF_TOKEN or HF_TOKEN == "your_hf_token_here":
-    print("Warning: HF_TOKEN is not correctly set. Please set it in the .env file.")
+    pass # SILENCED WARNING
 
 # Create OpenAI-compatible client
 client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN or "dummy_token")
@@ -62,7 +62,7 @@ def format_prompt(state, task_id):
     return prompt
 
 def main():
-    print("Waiting for environment server to start...")
+    # SILENCED: print("Waiting for environment server to start...")
     for _ in range(10):
         try:
             requests.get(f"{ENV_URL}/health")
@@ -70,13 +70,13 @@ def main():
         except requests.exceptions.ConnectionError:
             time.sleep(1)
     else:
-        print("Failed to connect to the environment server.")
+        # SILENCED: print("Failed to connect to the environment server.")
         return
 
     try:
         tasks = get_tasks()
     except Exception as e:
-        print(f"Error fetching tasks: {e}")
+        # SILENCED: print(f"Error fetching tasks: {e}")
         return
 
     final_scores = {}
@@ -123,8 +123,7 @@ def main():
                     parsed_action = json.loads(content)
                     
             except Exception as e:
-                print(f"[Warning] LLM error or invalid JSON: {e}. Using fallback random action.")
-                # Fallback to random action if parsing fails or LLM gives a bad response
+                # SILENCED: print(f"[Warning] LLM error or invalid JSON: {e}. Using fallback random action.")
                 parsed_action = {
                     "row": random.randint(0, 7), 
                     "col": random.randint(0, 7), 
@@ -165,13 +164,14 @@ def main():
         except Exception as e:
             print(f"[END] task={task_id} score=0.00 steps=0", flush=True)
 
-    print("\n--- Summary ---")
-    total = 0
-    for i, (tid, score) in enumerate(final_scores.items()):
-        print(f"Task {i+1} ({tid}): {score:.2f}")
-        total += score
-    if final_scores:
-        print(f"Average: {(total/len(final_scores)):.2f}")
+    # SILENCED THE ENTIRE SUMMARY BLOCK
+    # print("\n--- Summary ---")
+    # total = 0
+    # for i, (tid, score) in enumerate(final_scores.items()):
+    #     print(f"Task {i+1} ({tid}): {score:.2f}")
+    #     total += score
+    # if final_scores:
+    #     print(f"Average: {(total/len(final_scores)):.2f}")
 
 if __name__ == "__main__":
     main()
